@@ -17,7 +17,8 @@ COPY package.json package-lock.json* ./
 COPY packages/backend/package.json packages/backend/package.json
 COPY packages/frontend/package.json packages/frontend/package.json
 RUN npm install --omit=dev --workspace packages/backend
-COPY --from=builder /app/packages/backend/dist packages/backend/dist
-COPY --from=builder /app/packages/frontend/dist packages/backend/public
+COPY --from=builder --chown=node:node /app/packages/backend/dist packages/backend/dist
+COPY --from=builder --chown=node:node /app/packages/frontend/dist packages/backend/public
 EXPOSE 3000
+USER node
 CMD ["node", "packages/backend/dist/index.js"]

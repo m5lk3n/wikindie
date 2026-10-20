@@ -1,6 +1,16 @@
 services:
   wikindie:
     build: .
+    # Matches the host user by default so the bind-mounted ./space volume stays
+    # writable without a manual chown. Override with your own UID/GID if needed.
+    user: "${UID:-1000}:${GID:-1000}"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     ports:
       - "3000:3000"
     environment:

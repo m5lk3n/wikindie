@@ -52,6 +52,7 @@ macOS / Linux:
 docker run -d -p 3000:3000 -v $(pwd)/space:/space \
   -e WIKINDIE_USER=you:your-strong-password \
   -e JWT_SECRET=$(openssl rand -hex 32) \
+  -e SPACE_DIR=/space \
   ghcr.io/dexgamedev/wikindie:latest
 ```
 
@@ -61,6 +62,7 @@ Windows (PowerShell):
 docker run -d -p 3000:3000 -v "${PWD}/space:/space" `
   -e WIKINDIE_USER=you:your-strong-password `
   -e JWT_SECRET=$(-join ((48..57) + (97..102) | Get-Random -Count 64 | ForEach-Object {[char]$_})) `
+  -e SPACE_DIR=/space `
   ghcr.io/dexgamedev/wikindie:latest
 ```
 
@@ -122,6 +124,29 @@ docker compose up --build
 ```
 
 The compose file mounts `./space` into the container as `/space`, so your Docker workspace lives in a root-level `space` directory.
+
+### Rootless container
+
+The image runs as the non-root `node` user (uid/gid `1000`) rather than root, and the compose file adds `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, and a read-only root filesystem with a `tmpfs` mount at `/tmp`. The app itself never writes outside `SPACE_DIR`, so none of that affects normal operation.
+
+Because the container writes into the bind-mounted `./space` directory as uid/gid `1000`, that directory needs to be writable by that uid on the host. Either:
+
+- Leave `UID`/`GID` unset and let the default `1000:1000` apply, chowning the host directory to match: `chown -R 1000:1000 ./space`, or
+- Set `UID`/`GID` in your `.env` (see `.env.example`) to your own host user, so the container writes as you: `echo "UID=$(id -u)" >> .env && echo "GID=$(id -g)" >> .env`.
+
+If you run the image directly with `docker run` instead of Compose, add the equivalent flags:
+
+```bash
+docker run -d -p 3000:3000 -v $(pwd)/space:/space \
+  --user 1000:1000 --cap-drop ALL --security-opt no-new-privileges:true \
+  --read-only --tmpfs /tmp \
+  -e WIKINDIE_USER=you:your-strong-password \
+  -e JWT_SECRET=$(openssl rand -hex 32) \
+  -e SPACE_DIR=/space \
+  ghcr.io/dexgamedev/wikindie:latest
+```
+
+`SPACE_DIR` must be set to `/space` here: it defaults to `./space`, which resolves relative to the container's working directory (`/app`), not to the mounted volume. With `--read-only`, writing anywhere outside a mounted volume or tmpfs fails outright (`ENOENT: no such file or directory, mkdir '/app/space'`); without `--read-only` it would silently write into the container's ephemeral layer instead of your host's `./space`, so this applies to the quickstart command above too.
 
 ### Production data safety
 
